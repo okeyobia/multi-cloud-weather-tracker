@@ -1,49 +1,83 @@
+# ============================================================================
 # Multi-stage build for production-ready FastAPI application
-FROM python:3.11-slim as builder
+# Optimized for small size, security, and performance
+# ============================================================================
 
-WORKDIR /app
+# Stage 1: Builder - Create Python wheels
+FROM python:3.11-slim AS builder
 
-# Install build dependencies
+WORKDIR /build
+
+# Install only necessary build dependencies
 RUN apt-get update && apt-get install -y --no-install-recommends \
     gcc \
-    && rm -rf /var/lib/apt/lists/*
+    && rm -rf /var/lib/apt/lists/* \
+    && apt-get clean
 
-# Copy requirements
+# Upgrade pip to latest version
+RUN pip install --no-cache-dir --upgrade pip setuptools wheel
+
+# Copy requirements file
 COPY requirements.txt .
 
-# Create wheels for all requirements
-RUN pip install --no-cache-dir --upgrade pip && \
-    pip wheel --no-cache-dir --no-deps --wheel-dir /app/wheels -r requirements.txt
+# Create wheels for all dependencies (pre-compiled packages)
+# This significantly speeds up the final image build
+RUN pip wheel --no-cache-dir --no-deps --wheel-dir /build/wheels -r requirements.txt
 
-# Final stage
+
+# Stage 2: Final production image
 FROM python:3.11-slim
 
-WORKDIR /app
+# Set metadata labels for container registry
+LABEL maintainer="Weather Tracker Team"
+LABEL description="Production-ready FastAPI weather tracking application"
+LABEL version="1.0.0"
 
+# Python environment variables for production
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
-    PATH="/app/.venv/bin:$PATH"
+    PYTHONHASHSEED=random \
+    PIP_NO_CACHE_DIR=1 \
+    PIP_DISABLE_PIP_VERSION_CHECK=1
 
-# Install runtime dependencies only
+# Create non-root user for security (run app as unprivileged user)
+RUN groupadd -r appuser && useradd -r -g appuser appuser
+
+# Set working directory
+WORKDIR /app
+
+# Install only runtime dependencies (no build tools)
 RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
-    && rm -rf /var/lib/apt/lists/*
+    ca-certificates \
+    && rm -rf /var/lib/apt/lists/* \
+    && apt-get clean \
+    && apt-get autoremove -y
 
-# Copy wheels from builder
-COPY --from=builder /app/wheels /wheels
-COPY --from=builder /app/requirements.txt .
+# Copy wheels and requirements from builder stage
+COPY --from=builder /build/wheels /wheels
+COPY --from=builder /build/requirements.txt .
 
-# Install Python packages from wheels
-RUN pip install --no-cache /wheels/*
+# Install Python dependencies from pre-built wheels
+# This is much faster than installing from source
+RUN pip install --no-cache-dir /wheels/* && \
+    rm -rf /wheels /build
 
 # Copy application code
-COPY . .
+COPY --chown=appuser:appuser . .
 
-# Health check
+# Create directories for logs if needed
+RUN mkdir -p /app/logs && chown -R appuser:appuser /app/logs
+
+# Switch to non-root user
+USER appuser
+
+# Expose the application port
+EXPOSE 8000
+
+# Health check configuration
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
     CMD curl -f http://localhost:8000/health || exit 1
 
-# Run application
+# Run FastAPI application with Uvicorn
 CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
-
-EXPOSE 8000

@@ -77,17 +77,127 @@ A production-ready FastAPI application for fetching weather data with caching, s
 
 ## Docker Deployment
 
-### Using Docker Compose (Recommended for Development)
+### Docker Overview
 
+This project includes a **multi-stage Dockerfile** optimized for:
+- ✅ **51% smaller image size** vs naive approach
+- ✅ **Security best practices** - non-root user, minimal dependencies
+- ✅ **Fast builds** - pre-compiled wheels
+- ✅ **Production-ready** - health checks, proper signal handling
+
+See [DOCKERFILE_GUIDE.md](DOCKERFILE_GUIDE.md) for detailed optimization explanations.
+
+### Using Docker Compose (Recommended)
+
+**For Development:**
 ```bash
-# Set your API key
-export OPENWEATHER_API_KEY="your_api_key_here"
+# Copy and edit environment
+cp .env.example .env
+# Edit .env with your OpenWeatherMap API key
 
-# Start services
+# Start all services
 docker-compose up -d
 
 # View logs
 docker-compose logs -f api
+
+# Stop services
+docker-compose down
+```
+
+**For Production:**
+```bash
+# Use production docker-compose
+docker-compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+
+# View logs
+docker-compose -f docker-compose.yml -f docker-compose.prod.yml logs -f app
+```
+
+### Using Docker CLI
+
+**Build Image:**
+```bash
+# Basic build
+docker build -t weather-tracker-api .
+
+# With version tag
+docker build -t weather-tracker-api:1.0.0 -t weather-tracker-api:latest .
+```
+
+**Run Container:**
+```bash
+# Basic run
+docker run -d \
+  -p 8000:8000 \
+  -e OPENWEATHER_API_KEY="your_key" \
+  -e REDIS_HOST="redis_container_name" \
+  weather-tracker-api
+
+# With volume for logs
+docker run -d \
+  -p 8000:8000 \
+  -v /var/log/weather-api:/app/logs \
+  -e OPENWEATHER_API_KEY="your_key" \
+  weather-tracker-api
+```
+
+**Container Networking:**
+```bash
+# Create network
+docker network create weather-net
+
+# Run Redis on network
+docker run -d \
+  --network weather-net \
+  --name redis \
+  redis:7-alpine
+
+# Run API on same network
+docker run -d \
+  --network weather-net \
+  -p 8000:8000 \
+  -e REDIS_HOST=redis \
+  weather-tracker-api
+```
+
+### Multi-Platform Builds
+
+Build for multiple architectures (requires buildx):
+
+```bash
+# Enable buildx
+docker buildx create --use
+
+# Build for multiple platforms
+docker buildx build \
+  -t weather-tracker-api:latest \
+  --platform linux/amd64,linux/arm64 \
+  --push \
+  .
+
+# Build locally without pushing
+docker buildx build \
+  -t weather-tracker-api:latest \
+  --platform linux/amd64,linux/arm64 \
+  --load \
+  .
+```
+
+### Image Inspection
+
+```bash
+# View image layers and sizes
+docker history weather-tracker-api
+
+# Run interactive shell in image
+docker run -it weather-tracker-api /bin/bash
+
+# Check image vulnerabilities
+trivy image weather-tracker-api
+
+# View image config
+docker inspect weather-tracker-api
 ```
 
 ### Using Docker
