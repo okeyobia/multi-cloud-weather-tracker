@@ -1,8 +1,144 @@
 # Troubleshooting Guide
 
+## Quick Health Status Reference
+
+| Status | Meaning | Action |
+|--------|---------|--------|
+| `"healthy"` | All dependencies operational | ✅ Everything working |
+| `"degraded"` | API running but Redis disconnected | ⚠️ Start Redis (doesn't block API) |
+
+**Key point:** API continues to work even if status is "degraded". No caching will occur, but weather requests still function.
+
+## Quick Fix Checklist
+
+If health check is still returning "degraded":
+
+1. **Check your `.env` file:**
+   ```bash
+   grep REDIS_PASSWORD .env
+   # Should show: REDIS_PASSWORD=
+   # NOT: REDIS_PASSWORD=null
+   ```
+
+2. **Verify Redis is running:**
+   ```bash
+   redis-cli ping
+   # Should return: PONG
+   ```
+
+3. **Restart API after fixing `.env`:**
+   ```bash
+   # Stop current process (Ctrl+C)
+   # Then restart
+   uvicorn app.main:app --reload
+   ```
+
+4. **Check health immediately:**
+   ```bash
+   curl http://localhost:8000/health
+   # Should now return: "status": "healthy"
+   ```
+
+5. **Check logs for detailed errors:**
+   ```bash
+   # Look for "Redis reconnected successfully" message
+   curl http://localhost:8000/diagnostics
+   ```
+
+---
+
 ## Common Errors and Solutions
 
-### Error: "Weather data not found for city: New York" (404)
+### Error: Health Check Returns "degraded" Status
+
+This means Redis is not connected. The API is still working, but caching is disabled.
+
+### Solution: Start Redis
+
+The app now supports **auto-reconnection**! Just start Redis and the health status will update automatically:
+
+**Option 1: Docker (Recommended)**
+```bash
+docker run -d -p 6379:6379 --name weather-redis redis:7-alpine
+
+# Then check health immediately - it should auto-reconnect
+curl http://localhost:8000/health
+```
+
+**Option 2: Homebrew (macOS)**
+```bash
+redis-server
+
+# Then check health - it should auto-reconnect
+curl http://localhost:8000/health
+```
+
+**Option 3: APT (Ubuntu/Debian)**
+```bash
+sudo systemctl start redis-server
+
+# Then check health - it should auto-reconnect
+curl http://localhost:8000/health
+```
+
+**Option 4: Docker Compose**
+```bash
+docker-compose up -d redis
+# Wait a few seconds for Redis to start
+curl http://localhost:8000/health
+```
+
+### Why does "degraded" status still appear?
+
+The health check attempts to reconnect automatically. If Redis is still not accessible, check these:
+
+**Most Common Issue: REDIS_PASSWORD Configuration**
+
+If you're still getting "degraded" after starting Redis:
+```bash
+# Check your .env file - the password line should be EMPTY for no password:
+REDIS_PASSWORD=              # ✅ Correct - empty
+REDIS_PASSWORD=              # ✅ Also correct - empty
+# NOT these:
+REDIS_PASSWORD="null"        # ❌ Wrong - treats "null" as password
+REDIS_PASSWORD=null          # ❌ Wrong - treats null as password
+```
+
+**How to fix:**
+1. Edit `.env` file
+2. Find the `REDIS_PASSWORD` line
+3. Make sure it's blank/empty (no quotes or values)
+4. **Restart the API** - changes to `.env` require restart
+5. The health check will auto-reconnect
+
+**Other potential issues:**
+- **Redis not running:** Fix by starting Redis service
+- **Wrong Redis host/port:** Check `.env` file settings
+- **Network issues:** Ensure localhost:6379 is accessible
+
+### Error: "Health status didn't change after starting Redis"
+
+1. **Verify Redis is actually running:**
+   ```bash
+   redis-cli ping
+   # Should output: PONG
+   ```
+
+2. **Check if using correct host/port:**
+   ```bash
+   # If Redis was started on a different host/port, update .env
+   REDIS_HOST="your_host"
+   REDIS_PORT="your_port"
+   ```
+
+3. **Restart the API:**
+   ```bash
+   # Stop the running API (Ctrl+C)
+   # Then restart
+   uvicorn app.main:app --reload
+   ```
+
+## Error: "Weather data not found for city: New York" (404)
 
 This error occurs when the API cannot fetch weather data for the requested city. Here are the most common causes and solutions:
 
@@ -213,14 +349,52 @@ curl "http://localhost:8000/weather"
 
 ## Debug Workflow
 
-### Step 1: Check Diagnostics
-```bash
-curl http://localhost:8000/diagnostics
-```
-
-### Step 2: Verify Health Check
+### Step 1: Check Health Status
 ```bash
 curl http://localhost:8000/health
+```
+
+**Response with healthy status:**
+```json
+{
+  "status": "healthy",
+  "version": "1.0.0",
+  "timestamp": "2026-02-13T00:50:00.123456",
+  "dependencies": {
+    "redis": {
+      "status": "connected",
+      "host": "localhost",
+      "port": 6379
+    }
+  }
+}
+```
+
+**Response with degraded status (Redis disconnected):**
+```json
+{
+  "status": "degraded",
+  "version": "1.0.0",
+  "timestamp": "2026-02-13T00:50:00.123456",
+  "dependencies": {
+    "redis": {
+      "status": "disconnected",
+      "host": "localhost",
+      "port": 6379
+    }
+  },
+  "note": "Redis is disconnected. Start Redis to make status 'healthy'. API still functional."
+}
+```
+
+**How to fix "degraded" status:**
+1. Start Redis where it's configured (default: localhost:6379)
+2. Health check will auto-reconnect on next request
+3. Status will change to "healthy"
+
+### Step 2: Check Diagnostics
+```bash
+curl http://localhost:8000/diagnostics
 ```
 
 ### Step 3: Check Logs

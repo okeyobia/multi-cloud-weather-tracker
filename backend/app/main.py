@@ -2,6 +2,7 @@
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.responses import JSONResponse
 from prometheus_client import generate_latest, CONTENT_TYPE_LATEST
+from datetime import datetime
 import logging
 
 from app.config import settings
@@ -54,7 +55,6 @@ def create_app() -> FastAPI:
     # Health check endpoint
     @app.get(
         "/health",
-        response_model=HealthCheck,
         tags=["Health"],
         summary="Health check endpoint",
         description="Returns the health status of the API"
@@ -64,16 +64,32 @@ def create_app() -> FastAPI:
         Health check endpoint returning application status.
 
         Returns:
-            HealthCheck: Health status, version, and timestamp
+            Health status, version, and timestamp with dependency info
         """
         logger.debug("Health check requested")
         redis_health = cache.is_connected()
         api_health.set(1 if redis_health else 0)
-
-        return HealthCheck(
-            status="healthy" if redis_health else "degraded",
-            version=settings.app_version
-        )
+        
+        # Determine overall status
+        status = "healthy" if redis_health else "degraded"
+        
+        response = {
+            "status": status,
+            "version": settings.app_version,
+            "timestamp": datetime.utcnow().isoformat(),
+            "dependencies": {
+                "redis": {
+                    "status": "connected" if redis_health else "disconnected",
+                    "host": settings.redis_host,
+                    "port": settings.redis_port
+                }
+            }
+        }
+        
+        if not redis_health:
+            response["note"] = "Redis is disconnected. Start Redis to make status 'healthy'. API still functional."
+        
+        return response
 
     # Weather endpoint - get weather for a city
     @app.get(

@@ -36,6 +36,13 @@ class Settings(BaseSettings):
     class Config:
         env_file = ".env"
         case_sensitive = False
+    
+    def __init__(self, **data):
+        """Initialize settings and clean up redis_password."""
+        super().__init__(**data)
+        # Convert "null" string or empty string to None
+        if not self.redis_password or self.redis_password.lower() in ("null", "none", ""):
+            self.redis_password = None
 
 
 settings = Settings()

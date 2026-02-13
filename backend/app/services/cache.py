@@ -99,13 +99,66 @@ class CacheService:
             return False
 
     def is_connected(self) -> bool:
-        """Check if Redis is connected."""
+        """Check if Redis is connected. Attempts reconnection if needed."""
+        # If no client exists, try to reconnect
         if not self.client:
-            return False
+            try:
+                logger.info(
+                    "Attempting Redis reconnection",
+                    extra={
+                        "host": settings.redis_host,
+                        "port": settings.redis_port,
+                        "has_password": settings.redis_password is not None
+                    }
+                )
+                self.client = redis.Redis(
+                    host=settings.redis_host,
+                    port=settings.redis_port,
+                    db=settings.redis_db,
+                    password=settings.redis_password,
+                    decode_responses=True,
+                    socket_connect_timeout=5,
+                    socket_keepalive=True
+                )
+                self.client.ping()
+                logger.info("Redis reconnected successfully", extra={"host": settings.redis_host})
+                return True
+            except ConnectionRefusedError as e:
+                logger.warning(
+                    "Redis connection refused - ensure Redis is running",
+                    extra={
+                        "host": settings.redis_host,
+                        "port": settings.redis_port,
+                        "error": str(e)
+                    }
+                )
+                self.client = None
+                return False
+            except Exception as e:
+                logger.warning(
+                    "Failed to reconnect to Redis",
+                    extra={
+                        "error_type": type(e).__name__,
+                        "error": str(e),
+                        "host": settings.redis_host
+                    }
+                )
+                self.client = None
+                return False
+        
+        # If client exists, test connection
         try:
             self.client.ping()
             return True
-        except Exception:
+        except Exception as e:
+            logger.warning(
+                "Redis connection lost",
+                extra={
+                    "error_type": type(e).__name__,
+                    "error": str(e)
+                }
+            )
+            self.client = None
             return False
 
 
