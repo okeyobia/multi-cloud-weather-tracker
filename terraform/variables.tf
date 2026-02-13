@@ -220,3 +220,327 @@ variable "enable_high_availability" {
   type        = bool
   default     = true
 }
+
+# RDS PostgreSQL Configuration
+variable "rds_instance_class" {
+  description = "Instance class for RDS database"
+  type        = string
+  default     = "db.t4g.medium"
+
+  validation {
+    condition     = can(regex("^db\\.[a-z0-9]+\\.[a-z0-9]+$", var.rds_instance_class))
+    error_message = "Invalid RDS instance class format"
+  }
+}
+
+variable "rds_allocated_storage" {
+  description = "Allocated storage in GB for RDS"
+  type        = number
+  default     = 100
+
+  validation {
+    condition     = var.rds_allocated_storage >= 20 && var.rds_allocated_storage <= 65536
+    error_message = "Allocated storage must be between 20 and 65536 GB"
+  }
+}
+
+variable "rds_storage_type" {
+  description = "Storage type for RDS (gp2, gp3, io1, io2)"
+  type        = string
+  default     = "gp3"
+
+  validation {
+    condition     = contains(["gp2", "gp3", "io1", "io2"], var.rds_storage_type)
+    error_message = "Storage type must be one of: gp2, gp3, io1, io2"
+  }
+}
+
+variable "rds_iops" {
+  description = "IOPS for RDS (for gp3, io1, io2)"
+  type        = number
+  default     = 3000
+
+  validation {
+    condition     = var.rds_iops >= 1000 && var.rds_iops <= 64000
+    error_message = "IOPS must be between 1000 and 64000"
+  }
+}
+
+variable "rds_postgres_version" {
+  description = "PostgreSQL version for RDS"
+  type        = string
+  default     = "15.4"
+}
+
+variable "rds_database_name" {
+  description = "Name of the initial database"
+  type        = string
+  default     = "weatherdb"
+
+  validation {
+    condition     = can(regex("^[a-zA-Z][a-zA-Z0-9_]*$", var.rds_database_name))
+    error_message = "Database name must start with a letter and contain only alphanumeric characters and underscores"
+  }
+}
+
+variable "rds_master_username" {
+  description = "Master username for RDS"
+  type        = string
+  default     = "postgres"
+  sensitive   = true
+}
+
+variable "rds_master_password" {
+  description = "Master password for RDS"
+  type        = string
+  sensitive   = true
+
+  validation {
+    condition     = length(var.rds_master_password) >= 8
+    error_message = "Password must be at least 8 characters"
+  }
+}
+
+variable "rds_multi_az" {
+  description = "Enable Multi-AZ deployment"
+  type        = bool
+  default     = true
+}
+
+variable "rds_backup_retention_days" {
+  description = "Number of days to retain backups"
+  type        = number
+  default     = 30
+
+  validation {
+    condition     = var.rds_backup_retention_days >= 1 && var.rds_backup_retention_days <= 35
+    error_message = "Backup retention must be between 1 and 35 days"
+  }
+}
+
+variable "rds_backup_window" {
+  description = "Backup window for RDS (UTC)"
+  type        = string
+  default     = "03:00-04:00"
+}
+
+variable "rds_maintenance_window" {
+  description = "Maintenance window for RDS (UTC)"
+  type        = string
+  default     = "sun:04:00-sun:05:00"
+}
+
+variable "rds_parameter_family" {
+  description = "DB parameter family"
+  type        = string
+  default     = "postgres15"
+}
+
+variable "rds_max_connections" {
+  description = "Maximum database connections"
+  type        = number
+  default     = 100
+
+  validation {
+    condition     = var.rds_max_connections >= 20 && var.rds_max_connections <= 10000
+    error_message = "Max connections must be between 20 and 10000"
+  }
+}
+
+variable "rds_log_min_duration" {
+  description = "Log queries longer than this (milliseconds, -1 to disable)"
+  type        = number
+  default     = 1000
+}
+
+variable "rds_allowed_cidr_blocks" {
+  description = "CIDR blocks allowed to connect to RDS"
+  type        = list(string)
+  default     = []
+}
+
+variable "enable_rds_enhanced_monitoring" {
+  description = "Enable enhanced monitoring for RDS"
+  type        = bool
+  default     = true
+}
+
+variable "enable_rds_performance_insights" {
+  description = "Enable Performance Insights for RDS"
+  type        = bool
+  default     = true
+}
+
+variable "rds_performance_insights_retention" {
+  description = "Performance Insights retention period in days"
+  type        = number
+  default     = 7
+
+  validation {
+    condition     = contains([7, 31, 62, 93, 124, 155, 186, 217, 248, 279, 310, 341, 372, 403, 434, 465, 496, 527, 558, 589, 620, 651, 682, 713, 744, 775], var.rds_performance_insights_retention)
+    error_message = "Performance Insights retention must be a valid value (7 or 31-775 in 31-day increments)"
+  }
+}
+
+# S3 Configuration
+variable "s3_cors_allowed_origins" {
+  description = "CORS allowed origins for S3"
+  type        = list(string)
+  default     = ["*"]
+}
+
+variable "s3_size_alarm_threshold" {
+  description = "S3 bucket size alarm threshold in bytes"
+  type        = number
+  default     = 107374182400  # 100GB
+}
+
+variable "s3_object_count_alarm_threshold" {
+  description = "S3 object count alarm threshold"
+  type        = number
+  default     = 1000000  # 1 million objects
+}
+
+variable "enable_s3_replication" {
+  description = "Enable S3 bucket replication"
+  type        = bool
+  default     = false
+}
+
+variable "s3_replication_destination_arn" {
+  description = "S3 replication destination bucket ARN"
+  type        = string
+  default     = ""
+}
+
+# CloudFront Configuration
+variable "cloudfront_default_root_object" {
+  description = "Default root object for CloudFront"
+  type        = string
+  default     = "index.html"
+}
+
+variable "cloudfront_api_domain_name" {
+  description = "Domain name for API origin (ALB or NLB)"
+  type        = string
+  default     = ""
+}
+
+variable "cloudfront_price_class" {
+  description = "Price class for CloudFront (PriceClass_All, PriceClass_100, PriceClass_200)"
+  type        = string
+  default     = "PriceClass_100"
+
+  validation {
+    condition     = contains(["PriceClass_All", "PriceClass_100", "PriceClass_200"], var.cloudfront_price_class)
+    error_message = "Price class must be one of: PriceClass_All, PriceClass_100, PriceClass_200"
+  }
+}
+
+variable "cloudfront_geo_restriction_type" {
+  description = "Type of geo restriction (none, whitelist, blacklist)"
+  type        = string
+  default     = "none"
+
+  validation {
+    condition     = contains(["none", "whitelist", "blacklist"], var.cloudfront_geo_restriction_type)
+    error_message = "Geo restriction type must be one of: none, whitelist, blacklist"
+  }
+}
+
+variable "cloudfront_geo_restriction_locations" {
+  description = "List of countries/locations for geo restriction (ISO 3166-1-alpha-2 codes)"
+  type        = list(string)
+  default     = []
+}
+
+variable "cloudfront_use_default_certificate" {
+  description = "Use CloudFront default certificate (vs custom ACM cert)"
+  type        = bool
+  default     = true
+}
+
+variable "cloudfront_acm_certificate_arn" {
+  description = "ARN of ACM certificate for CloudFront"
+  type        = string
+  default     = ""
+}
+
+variable "cloudfront_waf_arn" {
+  description = "ARN of WAF ACL for CloudFront protection"
+  type        = string
+  default     = ""
+}
+
+# Route53 Configuration
+variable "route53_domain_name" {
+  description = "Domain name for Route53"
+  type        = string
+  default     = ""
+}
+
+variable "route53_create_hosted_zone" {
+  description = "Create a new Route53 hosted zone"
+  type        = bool
+  default     = false
+}
+
+variable "route53_enable_secondary" {
+  description = "Enable secondary failover record"
+  type        = bool
+  default     = false
+}
+
+variable "route53_secondary_cloudfront_domain" {
+  description = "Secondary CloudFront domain for failover"
+  type        = string
+  default     = ""
+}
+
+variable "route53_enable_api_failover" {
+  description = "Enable API failover records"
+  type        = bool
+  default     = false
+}
+
+variable "route53_enable_traffic_policy" {
+  description = "Enable Route53 traffic policy"
+  type        = bool
+  default     = false
+}
+
+variable "route53_enable_calculated_health_check" {
+  description = "Enable calculated health check"
+  type        = bool
+  default     = true
+}
+
+variable "route53_enable_resolver_endpoint" {
+  description = "Enable Route53 Resolver endpoint for hybrid DNS"
+  type        = bool
+  default     = false
+}
+
+variable "route53_enable_resolver_rule" {
+  description = "Enable Route53 Resolver forwarding rule"
+  type        = bool
+  default     = false
+}
+
+variable "route53_resolver_domain_name" {
+  description = "Domain name for Route53 Resolver forwarding"
+  type        = string
+  default     = ""
+}
+
+variable "route53_resolver_target_ip_1" {
+  description = "First target IP for Route53 Resolver"
+  type        = string
+  default     = ""
+}
+
+variable "route53_resolver_target_ip_2" {
+  description = "Second target IP for Route53 Resolver"
+  type        = string
+  default     = ""
+}
