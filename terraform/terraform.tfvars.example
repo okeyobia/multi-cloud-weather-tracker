@@ -1,0 +1,43 @@
+# Terraform Variables Example
+# Copy this to terraform.tfvars and modify values as needed
+# Uncomment and change values to override defaults
+
+# AWS Configuration
+# aws_region = "us-east-1"
+# environment = "prod"
+# project_name = "weather-tracker"
+
+# VPC Configuration
+# vpc_cidr = "10.0.0.0/16"
+# availability_zones = 2
+# enable_nat_gateway = true
+# enable_vpn_gateway = false
+# enable_private_dns = true
+
+# EKS Configuration
+# eks_version = "1.28"
+# eks_endpoint_private_access = true
+# eks_endpoint_public_access = true
+# eks_public_access_cidrs = ["0.0.0.0/0"]  # Restrict this in production!
+# eks_enabled_cluster_log_types = ["api", "audit", "authenticator", "controllerManager", "scheduler"]
+
+# Node Group Configuration
+# node_group_desired_size = 3
+# node_group_min_size = 1
+# node_group_max_size = 10
+# node_instance_types = ["t3.medium", "t3.large"]
+# node_disk_size = 50
+# node_group_capacity_type = "ON_DEMAND"  # or "SPOT" for cost optimization
+
+# Monitoring & Logging
+# log_retention_days = 7
+# enable_cluster_autoscaling = true
+# enable_pod_security_policy = false
+# enable_high_availability = true
+
+# Tags
+# tags = {
+#   Managed    = "Terraform"
+#   CostCenter = "engineering"
+#   Owner      = "platform-team"
+# }

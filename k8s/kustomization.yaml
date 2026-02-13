@@ -1,0 +1,52 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+metadata:
+  name: weather-tracker
+  namespace: weather-tracker
+
+# Resources to deploy
+resources:
+- redis-deployment.yaml
+- deployment.yaml
+
+# Common labels applied to all resources
+commonLabels:
+  app.kubernetes.io/name: weather-tracker
+  app.kubernetes.io/component: api
+  app.kubernetes.io/managed-by: kustomize
+
+# Common annotations
+commonAnnotations:
+  description: Weather Tracker API with Redis Cache
+
+# Images to patch
+images:
+- name: weather-tracker
+  newName: ACCOUNT_ID.dkr.ecr.us-east-1.amazonaws.com/weather-tracker
+  newTag: latest
+
+# Replicas override (for different environments)
+replicas:
+- name: weather-tracker-api
+  count: 3
+- name: redis
+  count: 1
+
+# Namespace
+namespace: weather-tracker
+
+# Patches for environment-specific configs
+patchesStrategicMerge:
+# Example: Override replicas or resources per environment
+# - override-replicas.yaml
+
+# Configuration variables that can be substituted
+vars:
+- name: REDIS_HOST
+  objref:
+    kind: Service
+    name: redis-service
+    apiVersion: v1
+  fieldref:
+    fieldpath: metadata.name

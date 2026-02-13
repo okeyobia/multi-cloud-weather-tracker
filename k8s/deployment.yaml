@@ -1,0 +1,261 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: weather-tracker
+  labels:
+    name: weather-tracker
+
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: weather-tracker-config
+  namespace: weather-tracker
+data:
+  LOG_LEVEL: "INFO"
+  REDIS_PORT: "6379"
+  CACHE_TTL: "3600"
+  WORKERS: "4"
+  # Redis host will connect to redis-service.weather-tracker.svc.cluster.local
+
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: weather-tracker-secrets
+  namespace: weather-tracker
+type: Opaque
+data:
+  # Base64 encoded - replace with your actual API key
+  # Base64 encode: echo -n "your-api-key" | base64
+  openweather-api-key: YWl0aWR1bW15LWFwaS1rZXkK
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: weather-tracker-service
+  namespace: weather-tracker
+  labels:
+    app: weather-tracker-api
+spec:
+  type: LoadBalancer
+  ports:
+  - name: http
+    port: 80
+    targetPort: 8000
+    protocol: TCP
+  selector:
+    app: weather-tracker-api
+  sessionAffinity: ClientIP
+  sessionAffinityConfig:
+    clientIP:
+      timeoutSeconds: 10800
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: weather-tracker-api
+  namespace: weather-tracker
+  labels:
+    app: weather-tracker-api
+    version: v1
+spec:
+  replicas: 3
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  selector:
+    matchLabels:
+      app: weather-tracker-api
+  template:
+    metadata:
+      labels:
+        app: weather-tracker-api
+        version: v1
+    spec:
+      serviceAccountName: weather-tracker
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        fsGroup: 1000
+      containers:
+      - name: api
+        image: weather-tracker:latest
+        imagePullPolicy: IfNotPresent
+        ports:
+        - name: http
+          containerPort: 8000
+          protocol: TCP
+        env:
+        # Configuration from ConfigMap
+        - name: LOG_LEVEL
+          valueFrom:
+            configMapKeyRef:
+              name: weather-tracker-config
+              key: LOG_LEVEL
+        - name: REDIS_PORT
+          valueFrom:
+            configMapKeyRef:
+              name: weather-tracker-config
+              key: REDIS_PORT
+        - name: CACHE_TTL
+          valueFrom:
+            configMapKeyRef:
+              name: weather-tracker-config
+              key: CACHE_TTL
+        - name: WORKERS
+          valueFrom:
+            configMapKeyRef:
+              name: weather-tracker-config
+              key: WORKERS
+        # Secrets
+        - name: OPENWEATHER_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: weather-tracker-secrets
+              key: openweather-api-key
+        # Service discovery
+        - name: REDIS_HOST
+          value: redis-service.weather-tracker.svc.cluster.local
+        # Kubernetes meta
+        - name: POD_NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.name
+        - name: POD_NAMESPACE
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.namespace
+        resources:
+          requests:
+            cpu: 100m
+            memory: 128Mi
+          limits:
+            cpu: 500m
+            memory: 512Mi
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: http
+            scheme: HTTP
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
+          successThreshold: 1
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: http
+            scheme: HTTP
+          initialDelaySeconds: 10
+          periodSeconds: 5
+          timeoutSeconds: 3
+          successThreshold: 1
+          failureThreshold: 3
+        startupProbe:
+          httpGet:
+            path: /health
+            port: http
+            scheme: HTTP
+          initialDelaySeconds: 10
+          periodSeconds: 5
+          timeoutSeconds: 3
+          successThreshold: 1
+          failureThreshold: 12  # Allow 60 seconds to start
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          runAsNonRoot: true
+          capabilities:
+            drop:
+            - ALL
+        volumeMounts:
+        - name: tmp
+          mountPath: /tmp
+      volumes:
+      - name: tmp
+        emptyDir: {}
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 100
+            podAffinityTerm:
+              labelSelector:
+                matchExpressions:
+                - key: app
+                  operator: In
+                  values:
+                  - weather-tracker-api
+              topologyKey: kubernetes.io/hostname
+      terminationGracePeriodSeconds: 30
+      dnsPolicy: ClusterFirst
+
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: weather-tracker
+  namespace: weather-tracker
+  labels:
+    app: weather-tracker-api
+
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: weather-tracker-api
+  namespace: weather-tracker
+spec:
+  minAvailable: 2
+  selector:
+    matchLabels:
+      app: weather-tracker-api
+
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: weather-tracker-hpa
+  namespace: weather-tracker
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: weather-tracker-api
+  minReplicas: 3
+  maxReplicas: 10
+  metrics:
+  - type: Resource
+    resource:
+      name: cpu
+      target:
+        type: Utilization
+        averageUtilization: 70
+  - type: Resource
+    resource:
+      name: memory
+      target:
+        type: Utilization
+        averageUtilization: 80
+  behavior:
+    scaleDown:
+      stabilizationWindowSeconds: 300
+      policies:
+      - type: Percent
+        value: 50
+        periodSeconds: 15
+    scaleUp:
+      stabilizationWindowSeconds: 0
+      policies:
+      - type: Percent
+        value: 100
+        periodSeconds: 15
+      - type: Pods
+        value: 4
+        periodSeconds: 15
+      selectPolicy: Max
