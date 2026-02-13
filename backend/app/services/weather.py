@@ -2,6 +2,7 @@
 import httpx
 import time
 from typing import Optional, Dict, Any
+from datetime import datetime
 from app.config import settings
 from app.models import WeatherData
 from app.services.cache import cache
@@ -102,10 +103,13 @@ class WeatherService:
                 return WeatherData(
                     city=data.get("name", city),
                     temperature=data["main"]["temp"],
+                    description=data["weather"][0]["main"],
+                    cloudProvider="AWS",
+                    isFailover=False,
+                    lastUpdated=datetime.utcnow().isoformat(),
                     feels_like=data["main"]["feels_like"],
                     humidity=data["main"]["humidity"],
                     pressure=data["main"]["pressure"],
-                    weather=data["weather"][0]["main"],
                     wind_speed=data["wind"]["speed"],
                     cloudiness=data["clouds"]["all"]
                 )

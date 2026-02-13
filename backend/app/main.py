@@ -1,6 +1,7 @@
 """FastAPI application factory and endpoints."""
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.responses import JSONResponse
+from fastapi.middleware.cors import CORSMiddleware
 from prometheus_client import generate_latest, CONTENT_TYPE_LATEST
 from datetime import datetime
 import logging
@@ -26,6 +27,20 @@ def create_app() -> FastAPI:
         debug=settings.debug,
         docs_url="/docs",
         openapi_url="/openapi.json"
+    )
+
+    # Add CORS middleware to allow cross-origin requests from frontend
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=[
+            "http://localhost:3000",  # Local development
+            "http://localhost:3001",  # Alternative port
+            "http://127.0.0.1:3000",  # Alternative localhost
+            "http://127.0.0.1:3001",  # Alternative localhost
+        ],
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
     )
 
     # Add metrics middleware
