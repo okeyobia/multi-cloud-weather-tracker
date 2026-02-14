@@ -27,10 +27,9 @@ provider "aws" {
 
   default_tags {
     tags = {
-      Environment = var.environment
-      Project     = var.project_name
-      Terraform   = "true"
-      CreatedAt   = timestamp()
+      Environment   = var.environment
+      Project       = var.project_name
+      Terraform     = "true"
       CloudProvider = "AWS"
     }
   }
@@ -39,7 +38,10 @@ provider "aws" {
 provider "kubernetes" {
   host                   = aws_eks_cluster.main.endpoint
   cluster_ca_certificate = base64decode(aws_eks_cluster.main.certificate_authority[0].data)
-  token                  = data.aws_eks_auth.cluster.token
+  token                  = data.aws_eks_cluster_auth.cluster.token
+}
 
-  depends_on = [aws_eks_node_group.main]
+# Data source to fetch EKS cluster authentication token
+data "aws_eks_cluster_auth" "cluster" {
+  name = aws_eks_cluster.main.name
 }

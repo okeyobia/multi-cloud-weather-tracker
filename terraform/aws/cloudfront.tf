@@ -21,75 +21,84 @@ resource "aws_cloudfront_distribution" "main" {
     }
   }
 
-  # API origin (load balancer or ALB)
-  origin {
-    domain_name = var.cloudfront_api_domain_name
-    origin_id   = "APIOrigin"
+  # API origin (load balancer or ALB) - conditional based on API domain name
+  dynamic "origin" {
+    for_each = var.cloudfront_api_domain_name != "" ? [1] : []
+    content {
+      domain_name = var.cloudfront_api_domain_name
+      origin_id   = "APIOrigin"
 
-    custom_origin_config {
-      http_port              = 80
-      https_port             = 443
-      origin_protocol_policy = "https-only"
-      origin_ssl_protocols   = ["TLSv1.2"]
-    }
+      custom_origin_config {
+        http_port              = 80
+        https_port             = 443
+        origin_protocol_policy = "https-only"
+        origin_ssl_protocols   = ["TLSv1.2"]
+      }
 
-    custom_headers {
-      name  = "X-Custom-Header"
-      value = "WeatherTracker"
+      custom_header {
+        name  = "X-Custom-Header"
+        value = "WeatherTracker"
+      }
     }
   }
 
-  # Cache behavior for API
-  cache_behavior {
-    allowed_methods = ["GET", "HEAD", "OPTIONS", "PUT", "POST", "PATCH", "DELETE"]
-    cached_methods  = ["GET", "HEAD"]
+  # Cache behavior for API - only if API domain is configured
+  dynamic "ordered_cache_behavior" {
+    for_each = var.cloudfront_api_domain_name != "" ? [1] : []
+    content {
+      allowed_methods = ["GET", "HEAD", "OPTIONS", "PUT", "POST", "PATCH", "DELETE"]
+      cached_methods  = ["GET", "HEAD"]
 
-    path_pattern = "/api/*"
+      path_pattern = "/api/*"
 
-    target_origin_id = "APIOrigin"
+      target_origin_id = "APIOrigin"
 
-    forwarded_values {
-      query_string = true
-      headers      = ["Authorization", "Host", "Content-Type", "Accept"]
+      forwarded_values {
+        query_string = true
+        headers      = ["Authorization", "Host", "Content-Type", "Accept"]
 
-      cookies {
-        forward = "all"
+        cookies {
+          forward = "all"
+        }
       }
-    }
 
-    viewer_protocol_policy = "redirect-to-https"
-    compress               = true
-    min_ttl                = 0
-    default_ttl            = 0
-    max_ttl                = 0
+      viewer_protocol_policy = "redirect-to-https"
+      compress               = true
+      min_ttl                = 0
+      default_ttl            = 0
+      max_ttl                = 0
+    }
   }
 
-  # Cache behavior for health endpoint
-  cache_behavior {
-    allowed_methods = ["GET", "HEAD"]
-    cached_methods  = ["GET", "HEAD"]
+  # Cache behavior for health endpoint - only if API domain is configured
+  dynamic "ordered_cache_behavior" {
+    for_each = var.cloudfront_api_domain_name != "" ? [1] : []
+    content {
+      allowed_methods = ["GET", "HEAD"]
+      cached_methods  = ["GET", "HEAD"]
 
-    path_pattern = "/health"
+      path_pattern = "/health"
 
-    target_origin_id = "APIOrigin"
+      target_origin_id = "APIOrigin"
 
-    forwarded_values {
-      query_string = false
+      forwarded_values {
+        query_string = false
 
-      cookies {
-        forward = "none"
+        cookies {
+          forward = "none"
+        }
       }
-    }
 
-    viewer_protocol_policy = "allow-all"
-    compress               = true
-    min_ttl                = 0
-    default_ttl            = 60     # Cache health checks for 1 minute
-    max_ttl                = 300    # Max 5 minutes
+      viewer_protocol_policy = "allow-all"
+      compress               = true
+      min_ttl                = 0
+      default_ttl            = 60     # Cache health checks for 1 minute
+      max_ttl                = 300    # Max 5 minutes
+    }
   }
 
   # Cache behavior for static content with aggressive caching
-  cache_behavior {
+  ordered_cache_behavior {
     allowed_methods = ["GET", "HEAD", "OPTIONS"]
     cached_methods  = ["GET", "HEAD"]
 

@@ -76,7 +76,7 @@ variable "enable_private_dns" {
 variable "eks_version" {
   description = "Kubernetes version for EKS"
   type        = string
-  default     = "1.28"
+  default     = "1.31"
 
   validation {
     condition     = can(regex("^1\\.(2[8-9]|3[0-9])$", var.eks_version))
@@ -269,7 +269,7 @@ variable "rds_iops" {
 variable "rds_postgres_version" {
   description = "PostgreSQL version for RDS"
   type        = string
-  default     = "15.4"
+  default     = "17"
 }
 
 variable "rds_database_name" {

@@ -76,22 +76,6 @@ resource "aws_iam_role_policy_attachment" "rds_enhanced_monitoring" {
   policy_arn = "arn:aws:iam::aws:policy/service-role/AmazonRDSEnhancedMonitoringRole"
 }
 
-# KMS Key for RDS encryption
-resource "aws_kms_key" "rds" {
-  description             = "KMS key for RDS encryption - ${var.project_name}-${var.environment}"
-  deletion_window_in_days = 7
-  enable_key_rotation     = true
-
-  tags = {
-    Name = "${var.project_name}-rds-kms-${var.environment}"
-  }
-}
-
-resource "aws_kms_alias" "rds" {
-  name          = "alias/${var.project_name}-rds-${var.environment}"
-  target_key_id = aws_kms_key.rds.key_id
-}
-
 # RDS Parameter Group
 resource "aws_db_parameter_group" "main" {
   name   = "${var.project_name}-postgres-${var.environment}"
@@ -131,7 +115,6 @@ resource "aws_db_parameter_group" "main" {
 resource "aws_cloudwatch_log_group" "rds_postgresql" {
   name              = "/aws/rds/postgresql/${var.project_name}-${var.environment}"
   retention_in_days = var.log_retention_days
-  kms_key_id        = aws_kms_key.rds.arn
 
   tags = {
     Name = "${var.project_name}-rds-logs-${var.environment}"
@@ -147,8 +130,7 @@ resource "aws_db_instance" "main" {
   instance_class       = var.rds_instance_class
   allocated_storage    = var.rds_allocated_storage
   storage_type         = var.rds_storage_type
-  storage_encrypted    = true
-  kms_key_id           = aws_kms_key.rds.arn
+  storage_encrypted    = false
   iops                 = var.rds_iops
 
   # Credentials
@@ -180,8 +162,7 @@ resource "aws_db_instance" "main" {
   skip_final_snapshot = var.environment != "prod"
 
   # Snapshot identifier for restore
-  final_snapshot_identifier    = var.environment == "prod" ? "${var.project_name}-postgres-final-snapshot-${formatdate("YYYY-MM-DD-hhmm", timestamp())}" : null
-  final_snapshot_identifier_prefix = "${var.project_name}-postgres-snapshot-"
+  final_snapshot_identifier = var.environment == "prod" ? "${var.project_name}-postgres-final-snapshot-${formatdate("YYYY-MM-DD-hhmm", timestamp())}" : null
 
   depends_on = [
     aws_db_subnet_group.main,
@@ -231,7 +212,6 @@ resource "aws_secretsmanager_secret" "rds_password" {
   name                    = "${var.project_name}/rds/password-${var.environment}"
   description             = "RDS PostgreSQL password for ${var.project_name}"
   recovery_window_in_days = var.environment == "prod" ? 30 : 7
-  kms_key_id              = aws_kms_key.rds.id
 
   tags = {
     Name = "${var.project_name}-rds-secret-${var.environment}"
@@ -277,8 +257,7 @@ resource "aws_db_event_subscription" "default" {
 
 # SNS Topic for RDS Alerts
 resource "aws_sns_topic" "rds_alerts" {
-  name              = "${var.project_name}-rds-alerts-${var.environment}"
-  kms_master_key_id = aws_kms_key.rds.id
+  name = "${var.project_name}-rds-alerts-${var.environment}"
 
   tags = {
     Name = "${var.project_name}-rds-alerts-${var.environment}"

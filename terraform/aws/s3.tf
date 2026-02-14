@@ -78,6 +78,12 @@ resource "aws_s3_bucket" "log" {
   }
 }
 
+# Enable ACL for log delivery
+resource "aws_s3_bucket_acl" "log" {
+  bucket = aws_s3_bucket.log.id
+  acl    = "log-delivery-write"
+}
+
 # Logging bucket versioning
 resource "aws_s3_bucket_versioning" "log" {
   bucket = aws_s3_bucket.log.id
@@ -116,12 +122,14 @@ resource "aws_s3_bucket_lifecycle_configuration" "main" {
     id     = "archive-old-versions"
     status = "Enabled"
 
-    noncurrent_version_action {
+    filter {}
+
+    noncurrent_version_transition {
       noncurrent_days = 30
       storage_class   = "STANDARD_IA"
     }
 
-    noncurrent_version_action {
+    noncurrent_version_transition {
       noncurrent_days = 90
       storage_class   = "GLACIER"
     }
@@ -135,6 +143,8 @@ resource "aws_s3_bucket_lifecycle_configuration" "main" {
     id     = "transition-incomplete-uploads"
     status = "Enabled"
 
+    filter {}
+
     abort_incomplete_multipart_upload {
       days_after_initiation = 7
     }
@@ -143,8 +153,6 @@ resource "aws_s3_bucket_lifecycle_configuration" "main" {
   rule {
     id     = "delete-old-logs"
     status = "Enabled"
-    prefix = "logs/"
-
     filter {
       prefix = "logs/"
     }
@@ -163,6 +171,8 @@ resource "aws_s3_bucket_lifecycle_configuration" "log" {
     id     = "delete-old-logs"
     status = "Enabled"
 
+    filter {}
+
     expiration {
       days = 30
     }
@@ -174,7 +184,7 @@ resource "aws_s3_bucket_lifecycle_configuration" "log" {
 }
 
 # S3 CORS Configuration
-resource "aws_s3_bucket_cors" "main" {
+resource "aws_s3_bucket_cors_configuration" "main" {
   bucket = aws_s3_bucket.main.id
 
   cors_rule {

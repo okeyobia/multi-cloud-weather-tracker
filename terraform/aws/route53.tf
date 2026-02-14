@@ -92,7 +92,7 @@ resource "aws_route53_record" "main_primary" {
 
   alias {
     name                   = aws_cloudfront_distribution.main.domain_name
-    zone_id                = aws_cloudfront_distribution.main.zone_id
+    zone_id                = "Z2FDTNDATAQYW2"
     evaluate_target_health = true
   }
 
@@ -208,13 +208,12 @@ resource "aws_route53_traffic_policy" "main" {
 
 # Route53 Traffic Policy Instance (apply policy to domain)
 resource "aws_route53_traffic_policy_instance" "main" {
-  count              = var.route53_enable_traffic_policy ? 1 : 0
-  zone_id            = aws_route53_zone.main[0].zone_id
-  traffic_policy_id  = aws_route53_traffic_policy.main[0].id
-  traffic_policy_version = aws_route53_traffic_policy.main[0].latest_version
-  name               = var.route53_domain_name
-  type               = "A"
-  ttl                = 300
+  count                   = var.route53_enable_traffic_policy ? 1 : 0
+  hosted_zone_id          = aws_route53_zone.main[0].zone_id
+  traffic_policy_id       = aws_route53_traffic_policy.main[0].id
+  traffic_policy_version  = aws_route53_traffic_policy.main[0].version
+  name                    = var.route53_domain_name
+  ttl                     = 300
 }
 
 # Route53 Query Logging
@@ -227,20 +226,13 @@ resource "aws_cloudwatch_log_group" "route53" {
   }
 }
 
-resource "aws_route53_query_logging_config" "main" {
-  count                  = var.route53_create_hosted_zone ? 1 : 0
-  zone_id                = aws_route53_zone.main[0].zone_id
-  cloudwatch_log_group_arn = "${aws_cloudwatch_log_group.route53.arn}:*"
-}
+
 
 # Route53 Health Check for Overall Domain
 resource "aws_route53_health_check" "calculated" {
-  count             = var.route53_enable_calculated_health_check ? 1 : 0
-  type              = "CALCULATED"
-  child_health_checks = [
-    aws_route53_health_check.primary_cloudfront.id
-  ]
-  child_healthchecks_to_match_first = 1
+  count                        = var.route53_enable_calculated_health_check ? 1 : 0
+  type                         = "CALCULATED"
+  child_healthchecks           = [aws_route53_health_check.primary_cloudfront.id]
 
   tags = {
     Name = "${var.project_name}-health-calculated-${var.environment}"
@@ -249,7 +241,7 @@ resource "aws_route53_health_check" "calculated" {
 
 # Monitoring Data Source for existing hosted zone (if not creating)
 data "aws_route53_zone" "main" {
-  count = !var.route53_create_hosted_zone ? 1 : 0
+  count = !var.route53_create_hosted_zone && var.route53_domain_name != "" ? 1 : 0
   name  = var.route53_domain_name
 }
 
@@ -258,7 +250,7 @@ resource "aws_route53_resolver_endpoint" "main" {
   count              = var.route53_enable_resolver_endpoint ? 1 : 0
   name               = "${var.project_name}-resolver-${var.environment}"
   direction          = "INBOUND"
-  security_group_ids = [aws_security_group.route53_resolver.id]
+  security_group_ids = [aws_security_group.route53_resolver[count.index].id]
 
   ip_address {
     subnet_id = aws_subnet.private[0].id

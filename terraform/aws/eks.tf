@@ -36,28 +36,12 @@ resource "aws_iam_role_policy_attachment" "eks_vpc_resource_controller" {
 resource "aws_cloudwatch_log_group" "eks_cluster" {
   name              = "/aws/eks/${var.project_name}-${var.environment}/cluster"
   retention_in_days = var.log_retention_days
-  kms_key_id        = aws_kms_key.eks.arn
 
   tags = {
     Name = "${var.project_name}-eks-logs-${var.environment}"
   }
 }
 
-# KMS Key for encryption
-resource "aws_kms_key" "eks" {
-  description             = "KMS key for EKS encryption - ${var.project_name}-${var.environment}"
-  deletion_window_in_days = 7
-  enable_key_rotation     = true
-
-  tags = {
-    Name = "${var.project_name}-eks-kms-${var.environment}"
-  }
-}
-
-resource "aws_kms_alias" "eks" {
-  name          = "alias/${var.project_name}-eks-${var.environment}"
-  target_key_id = aws_kms_key.eks.key_id
-}
 
 # EKS Cluster
 resource "aws_eks_cluster" "main" {
@@ -76,14 +60,6 @@ resource "aws_eks_cluster" "main" {
   # Enable control plane logging
   enabled_cluster_log_types = var.eks_enabled_cluster_log_types
 
-  # Encryption configuration
-  encryption_config {
-    provider {
-      key_arn = aws_kms_key.eks.arn
-    }
-    resources = ["secrets"]
-  }
-
   # For high availability
   depends_on = [
     aws_iam_role_policy_attachment.eks_cluster_policy,
@@ -97,10 +73,7 @@ resource "aws_eks_cluster" "main" {
   }
 }
 
-# Fetch auth token for Kubernetes provider
-data "aws_eks_auth" "cluster" {
-  name = aws_eks_cluster.main.name
-}
+
 
 # IAM Role for EKS Node Group
 resource "aws_iam_role" "eks_node" {
@@ -166,13 +139,10 @@ resource "aws_eks_node_group" "main" {
     min_size     = var.node_group_min_size
   }
 
+  ami_type        = "AL2_x86_64"
   instance_types  = var.node_instance_types
   capacity_type   = var.node_group_capacity_type
   disk_size       = var.node_disk_size
-
-  vpc_config {
-    security_groups = [aws_security_group.eks_nodes.id]
-  }
 
   tags = {
     Name = "${var.project_name}-node-group-${var.environment}"
@@ -228,8 +198,7 @@ resource "aws_launch_template" "eks_nodes" {
       volume_size           = var.node_disk_size
       volume_type           = "gp3"
       delete_on_termination = true
-      encrypted             = true
-      kms_key_id            = aws_kms_key.eks.arn
+      encrypted             = false
     }
   }
 

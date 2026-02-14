@@ -162,6 +162,7 @@ output "rds_database_name" {
 output "rds_username" {
   description = "RDS master username"
   value       = aws_db_instance.main.username
+  sensitive   = true
 }
 
 output "rds_multi_az" {
@@ -346,4 +347,5 @@ output "infrastructure_summary" {
       nameservers = aws_route53_zone.main[0].name_servers
     } : null
   }
+  sensitive = true
 }
