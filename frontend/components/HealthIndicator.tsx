@@ -52,68 +52,102 @@ export default function HealthIndicator({ pollInterval = 15000 }: HealthIndicato
   }
 
   const statusColor = {
-    healthy: { bg: 'bg-gradient-to-r from-green-500 to-emerald-600', dot: '🟢' },
-    degraded: { bg: 'bg-gradient-to-r from-yellow-500 to-orange-600', dot: '🟡' },
-    down: { bg: 'bg-gradient-to-r from-red-500 to-rose-600', dot: '🔴' },
+    healthy: { 
+      bg: 'bg-gradient-to-r from-emerald-500 to-teal-600', 
+      darkBg: 'dark:from-emerald-600 dark:to-teal-700',
+      dot: '🟢', 
+      bgLight: 'from-emerald-50/90 to-teal-50/90 dark:from-emerald-900/20 dark:to-teal-900/20',
+      border: 'border-emerald-200/50 dark:border-emerald-800/50'
+    },
+    degraded: { 
+      bg: 'bg-gradient-to-r from-amber-500 to-orange-600', 
+      darkBg: 'dark:from-amber-600 dark:to-orange-700',
+      dot: '🟡', 
+      bgLight: 'from-amber-50/90 to-orange-50/90 dark:from-amber-900/20 dark:to-orange-900/20',
+      border: 'border-amber-200/50 dark:border-amber-800/50'
+    },
+    down: { 
+      bg: 'bg-gradient-to-r from-red-500 to-rose-600', 
+      darkBg: 'dark:from-red-600 dark:to-rose-700',
+      dot: '🔴', 
+      bgLight: 'from-red-50/90 to-rose-50/90 dark:from-red-900/20 dark:to-rose-900/20',
+      border: 'border-red-200/50 dark:border-red-800/50'
+    },
   }
 
   const current = statusColor[health.status as HealthStatus_Visual] || statusColor.down
 
   return (
-    <div>
+    <div className="space-y-4">
       {/* Health Banner */}
       <div
         className={cn(
-          'rounded-2xl p-4 mb-8 border border-opacity-20 transition-all duration-300',
-          current.bg,
-          'bg-opacity-10 border-current text-white shadow-lg'
+          'rounded-xl p-5 border transition-all duration-300 backdrop-blur-lg',
+          `${current.bg} ${current.darkBg}`,
+          'text-white shadow-soft-lg hover:shadow-soft-xl'
         )}
         role="status"
         aria-label={`System status: ${health.status}`}
       >
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <span className="text-xl">{current.dot}</span>
+            <span className="text-2xl animate-pulse">{current.dot}</span>
             <div>
-              <p className="font-semibold capitalize">{health.status}</p>
-              <p className="text-xs text-gray-300">{health.message}</p>
+              <p className="font-bold text-lg capitalize">{health.status}</p>
+              <p className="text-sm text-white/90">{health.message}</p>
             </div>
           </div>
-          <div className="text-right">
-            <p className="text-xs font-mono text-gray-300">{health.activeRegion}</p>
-            {isChecking && <span className="text-xs animate-pulse">checking...</span>}
+          <div className="text-right text-sm">
+            <p className="font-semibold text-white/95 flex items-center gap-1">
+              🌍 {health.activeRegion}
+            </p>
+            {isChecking && (
+              <p className="text-xs text-white/75 animate-pulse mt-1">verifying...</p>
+            )}
           </div>
         </div>
       </div>
 
       {/* Failover Warning */}
       {health.status === 'degraded' && (
-        <div className="mb-6 p-4 rounded-xl bg-yellow-50 dark:bg-yellow-900/20 border-2 border-yellow-400 dark:border-yellow-600">
+        <div className={cn(
+          'p-5 rounded-xl border-2 backdrop-blur-lg transition-all duration-300',
+          'bg-gradient-to-br from-amber-50/90 to-orange-50/90',
+          'dark:from-amber-900/20 dark:to-orange-900/20',
+          'border-amber-300 dark:border-amber-700/50',
+          'shadow-soft-md'
+        )}>
           <div className="flex items-start gap-3">
-            <span className="text-2xl">⚠️</span>
+            <span className="text-2xl flex-shrink-0">⚠️</span>
             <div>
-              <h4 className="font-semibold text-yellow-900 dark:text-yellow-100">
+              <h4 className="font-bold text-amber-900 dark:text-amber-100">
                 Failover in Progress
               </h4>
-              <p className="text-sm text-yellow-800 dark:text-yellow-200 mt-1">
-                The system is operating in a degraded state. Requests are being routed to backup
-                infrastructure.
+              <p className="text-sm text-amber-800 dark:text-amber-200 mt-1">
+                The system is operating in a degraded state. Requests are being routed to backup infrastructure.
               </p>
             </div>
           </div>
         </div>
       )}
 
-      {/* Down Warning */}
+      {/* Service Down Alert */}
       {health.status === 'down' && (
-        <div className="mb-6 p-4 rounded-xl bg-red-50 dark:bg-red-900/20 border-2 border-red-400 dark:border-red-600">
+        <div className={cn(
+          'p-5 rounded-xl border-2 backdrop-blur-lg transition-all duration-300',
+          'bg-gradient-to-br from-red-50/90 to-rose-50/90',
+          'dark:from-red-900/20 dark:to-rose-900/20',
+          'border-red-300 dark:border-red-700/50',
+          'shadow-soft-md'
+        )}>
           <div className="flex items-start gap-3">
-            <span className="text-2xl">🔴</span>
+            <span className="text-2xl flex-shrink-0">🚨</span>
             <div>
-              <h4 className="font-semibold text-red-900 dark:text-red-100">Service Unavailable</h4>
+              <h4 className="font-bold text-red-900 dark:text-red-100">
+                Service Unavailable
+              </h4>
               <p className="text-sm text-red-800 dark:text-red-200 mt-1">
-                Both primary and secondary services are currently offline. Please try again in a few
-                moments.
+                The backend service is currently unavailable. Please try again in a few moments.
               </p>
             </div>
           </div>
